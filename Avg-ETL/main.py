@@ -83,16 +83,23 @@ def main():
         elif choice == '3':
             # Fixed Deposit comparison
             try:
-                fd_rate = float(input("\nFixed Deposit annual interest rate (e.g., 7 for 7%): ")) / 100
+                raw_rate = float(input("\nFixed Deposit annual interest rate (e.g., 7 for 7%): "))
+                fd_rate = raw_rate / 100.0
+                add_cash = float(input("Additional cash to invest (Rs.): "))
+                
                 years = portfolio.get_weighted_holding_period_years()
                 print(f"Automatically calculated holding period: {years:.2f} years")
                 
-                if fd_rate < 0 or years <= 0:
+                if fd_rate < 0 or years <= 0 or add_cash < 0:
                     print("Invalid input. Rate must be non-negative and years must be positive.")
                     continue
                 
                 analyzer = PortfolioAnalyzer(portfolio)
-                fd_comparison = analyzer.compare_with_fd(fd_rate, years)
+                fd_comparison = analyzer.compare_with_fd(
+                    fd_annual_rate=fd_rate,
+                    investment_years=years,
+                    additional_investment=add_cash
+                )
                 
                 print("\n" + "="*80)
                 print("FIXED DEPOSIT vs AVERAGING DOWN ANALYSIS")
@@ -104,8 +111,8 @@ def main():
                 
                 print(f"\nIf you invest in Fixed Deposit instead:")
                 print(f"  Principal: Rs.{fd_comparison['recovery_needed']:.2f}")
-                print(f"  Annual Rate: {fd_comparison['fd_annual_rate']*100:.2f}%")
-                print(f"  Period: {fd_comparison['investment_years']} years")
+                print(f"  Annual Rate: {fd_comparison['fd_annual_rate']:.2f}%")
+                print(f"  Period: {fd_comparison['investment_years']:.2f} years")
                 print(f"  Interest Earned: Rs.{fd_comparison['fd_return']:.2f}")
                 print(f"  Final Value: Rs.{fd_comparison['fd_final_value']:.2f}")
                 
@@ -113,9 +120,12 @@ def main():
                 
                 # Get recommendation
                 engine = RecommendationEngine(portfolio)
-                rec = engine.should_average_down(recovery_needed, fd_rate, years)
+                # Use the actual cash the user entered for the recommendation comparison so both
+                # the analysis block and the recommendation block reflect the same principal.
+                rec = engine.should_average_down(add_cash, fd_rate, years)
                 
                 print("RECOMMENDATION:", rec['recommendation'])
+                print(f" Fixed Deposit Return: Rs.{rec['fd_return']:.2f}")
                 print("="*80 + "\n")
                 
             except ValueError:

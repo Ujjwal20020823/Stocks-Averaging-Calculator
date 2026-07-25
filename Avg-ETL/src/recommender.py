@@ -74,14 +74,18 @@ class RecommendationEngine:
         
         Args:
             additional_investment (float): Total cash liquidity to deploy (Rs.).
-            fd_rate (float): Fixed Deposit annual yield expressed as a decimal value.
+            fd_rate (float): Fixed Deposit annual yield (e.g. 5.0 for 5%)
             years (float): Investment horizon timeline.
         
         Returns:
             Dict: Analytical comparison matrix.
         """
         avg_down_scenario = self.analyzer.analyze_averaging_down(additional_investment)
-        fd_comparison = self.analyzer.compare_with_fd(fd_rate * 100, years) # Scaled to match analyzer expectation
+        fd_comparison = self.analyzer.compare_with_fd(
+            fd_annual_rate = fd_rate,
+            investment_years = years,
+            additional_investment = additional_investment
+        )
         
         current_avg_cost = self.portfolio.get_weighted_average_cost()
         current_price = self.portfolio.current_market_price
@@ -110,7 +114,9 @@ class RecommendationEngine:
             'fd_return': fd_return,
             'fd_advantage': fd_advantage,
             'loss_reduction': loss_reduction_from_avg_down,
-            'investment_required': additional_investment
+            'investment_required': additional_investment,
+            'fd_comparison' : fd_comparison,
+            'avg_down_scenario' : avg_down_scenario
         }
     
     def _make_decision(
