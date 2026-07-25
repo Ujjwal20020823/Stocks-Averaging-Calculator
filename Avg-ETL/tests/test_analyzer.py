@@ -15,8 +15,14 @@ class TestPortfolioAnalyzer:
         portfolio.get_weighted_average_cost.return_value = 938.89
         portfolio.current_market_price = 750.0
         portfolio.get_total_invested_amount.return_value = 422500.50
+        # Backwards-compat: some tests call get_total_investment()
+        portfolio.get_total_investment.return_value = 422500.50
+
         # Unrealized gain/loss should be negative for a paper loss (current - invested)
         portfolio.get_unrealized_gain_loss_rupees.return_value = -85000.00
+        # Backwards-compat: older callers may use get_unrealized_loss()
+        portfolio.get_unrealized_loss.return_value = -85000.00
+
         # Provide a mock for get_loss_recovery_amount in case other code calls it directly
         portfolio.get_loss_recovery_amount.return_value = 85000.00
         return portfolio
