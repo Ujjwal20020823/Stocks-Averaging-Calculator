@@ -33,9 +33,15 @@ class Transaction:
 
 
 class Portfolio:
-    def __init__(self, security_name: str, current_market_price: float):
-        self.security_name = security_name 
-        self.current_market_price = current_market_price 
+    def __init__(self, security_name: str = None, current_market_price: float = 0.0, symbol: str = None):
+        """Portfolio constructor.
+
+        Backwards-compatible: older tests/code used keyword `symbol=`. Prefer `security_name` going
+        forward. If both are provided, `security_name` takes precedence.
+        """
+        chosen_name = security_name if security_name is not None else symbol
+        self.security_name = chosen_name
+        self.current_market_price = current_market_price
         self.transactions: List[Transaction] = []
 
     def add_transaction(self, transaction: Transaction) -> None:
