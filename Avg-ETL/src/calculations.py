@@ -83,10 +83,10 @@ def calculate_opportunity_cost(
     compounding_frequency: int = 4
 ) -> float:
     """
-    Creative Upgrade: Uses realistic banking compound intervals (Default = 4 for Quarterly).
-    Formula: FV = PV * (1 + r/n)^(n*t) - PV
+    Calcuate compound interest yield. 
+    Handles rate wether passed as decimal (0.05) or percentage (5.0)
     """
-    r = fd_annual_rate / 100
+    r = fd_annual_rate if fd_annual_rate < 1.0 else fd_annual_rate / 100
     n = compounding_frequency
     t = years
     

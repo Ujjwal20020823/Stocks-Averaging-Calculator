@@ -50,16 +50,29 @@ class PortfolioAnalyzer:
             "loss_reduction": loss_reduction,
             "additional_investment": additional_investment
         }
-    def compare_with_fd(self, fd_annual_rate: float, investment_years: float) -> Dict:
+    def compare_with_fd(self, fd_annual_rate: float, investment_years: float, additional_investment: float=0.0) -> Dict:
         """Compare averaging down vs investing in Fixed Deposit."""
-        recovery_needed = self.get_loss_recovery_amount()
+        # If no additional cash is explicitly passes, use the loss recovery amount as fallback.
+        if additional_investment > 0:
+            capital_to_compare = additional_investment
+        else:
+            capital_to_compare = self.get_loss_recovery_amount()
         
-        fd_return = calculate_opportunity_cost(recovery_needed, fd_annual_rate, investment_years)
-        fd_final_value = recovery_needed + fd_return
+        decimal_rate = fd_annual_rate if fd_annual_rate < 1.0 else fd_annual_rate / 100.0
+        pct_rate = decimal_rate * 100.0
+        
+        fd_return = calculate_opportunity_cost(
+            additional_investment=capital_to_compare,
+            fd_annual_rate= fd_annual_rate, 
+            years=investment_years
+            )
+        fd_final_value = capital_to_compare + fd_return
+        display_rate= fd_annual_rate * 100.0 if fd_annual_rate < 1.0 else fd_annual_rate
         
         return {
-            'recovery_needed': recovery_needed,
-            'fd_annual_rate': fd_annual_rate,
+            'recovery_needed' : capital_to_compare,
+            'additional_investment': capital_to_compare,
+            'fd_annual_rate':display_rate,
             'investment_years': investment_years,
             'fd_return': fd_return,
             'fd_final_value': fd_final_value
@@ -79,7 +92,7 @@ class PortfolioAnalyzer:
             raise ValueError(f"Target average cannot be lower than or equal to the market floor price (Rs.{new_purchase_price}).")
 
         shares_needed, investment_needed = calculate_required_shares_for_new_avg(
-            self.portfolio.get_total_shares(),
+            self.portfolio.get_total_shares_owned(),
             current_avg,
             target_avg_cost,
             new_purchase_price
