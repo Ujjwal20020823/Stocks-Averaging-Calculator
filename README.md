@@ -30,19 +30,19 @@ This application helps investors model their current NEPSE stock holdings, estim
 The project is organized in a modular architecture with a clean separation between UI, domain logic, and calculations.
 
 ```text
-+----------------------+      +------------------------+
-|  Streamlit Frontend   |----->|  PortfolioAnalyzer     |
++----------------------+      +-----------------------------+
+|  Streamlit Frontend   |----->|  PortfolioAnalyzer         |
 |  (Avg-ETL/app.py)     |      |  (Avg-ETL/src/analyzer.py) |
-+----------------------+      +------------------------+
++----------------------+      +-----------------------------+
             |                           |
             |                           v
-            |                 +------------------------+
-            |                 |  Calculations & Models  |
-            |                 |  (Avg-ETL/src/models.py, |
+            |                 +--------------------------------+
+            |                 |  Calculations & Models         |
+            |                 |  (Avg-ETL/src/models.py,       |
             |                 |   Avg-ETL/src/calculations.py) |
-            |                 +------------------------+
+            |                 +--------------------------------+
             v
-+----------------------+      +------------------------+
++----------------------+       +------------------------+
 |  Plotly/Visualization |<-----|  Data processing layer |
 |  (Interactive charts) |      +------------------------+
 +----------------------+      

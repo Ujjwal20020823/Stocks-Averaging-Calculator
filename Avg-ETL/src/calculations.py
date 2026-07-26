@@ -120,3 +120,23 @@ def calculate_averaging_down_scenario(
     new_unrealized_loss = new_current_value - new_total_invested
     
     return new_total_shares, new_avg_cost, new_unrealized_loss
+
+
+def calculate_economic_bep(
+    total_fd_benchmark: float,
+    total_shares: int
+) -> float:
+    """
+    Calculate Economic Break-Even Price (FD recovery price).
+    Economic BEP represents the price needed to recover all lost opportunity costs.
+    
+    Args:
+        total_fd_benchmark: Total compounded FD value across all transactions
+        total_shares: Total shares owned across all transactions
+    
+    Returns:
+        Economic BEP price per share (Rs.)
+    """
+    if total_shares == 0:
+        return 0.0
+    return total_fd_benchmark / total_shares

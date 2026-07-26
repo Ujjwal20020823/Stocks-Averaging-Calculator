@@ -1,10 +1,12 @@
 from typing import Dict, Tuple
+from datetime import datetime
 from src.models import Portfolio
 from src.calculations import (
     calculate_averaging_down_scenario,
     calculate_opportunity_cost,
     calculate_tvm_adjusted_recovery,
-    calculate_required_shares_for_new_avg
+    calculate_required_shares_for_new_avg,
+    calculate_economic_bep
 )
 
 class PortfolioAnalyzer:
@@ -106,31 +108,180 @@ class PortfolioAnalyzer:
             'current_avg_cost': current_avg
         }
     
-    def get_recovery_scenarios(self) -> Dict:
+    def get_recovery_scenarios(self, annual_fd_rate: float = 5.0) -> Dict:
         """
-        Generate multiple psychological recovery scenarios labeled by milestones.
+        Generate multiple psychological recovery scenarios labeled by milestones,
+        including the Economic Break-Even Price.
+         
+        Args:
+            annual_fd_rate: Annual FD rate for computing Economic BEP (default 5.0%)
         """
         current_price = self.portfolio.current_market_price
         avg_cost = self.portfolio.get_weighted_average_cost()
         shares = self.portfolio.get_total_shares_owned()
-        
-        # Define milestones creatively instead of plain numbers
+         
+        # Get historical opportunity cost data to compute Economic BEP
+        hist_opp = self.get_historical_opportunity_cost(annual_fd_rate)
+        economic_bep = hist_opp['economic_bep']
+         
+        # Define milestones including Economic BEP
         milestone_definitions = [
             ("5% Technical Bounce", current_price * 1.05),
             ("15% Market Rally", current_price * 1.15),
             ("90% Recovery Near-Miss", avg_cost * 0.90),
-            ("TRUE BREAK-EVEN MILESTONE", avg_cost)
+            ("Simple Break-Even (Cost Basis)", avg_cost),
+            ("Economic Break-Even (FD Recovery)", economic_bep)
         ]
-        
+         
         scenarios = {}
         for label, target_price in milestone_definitions:
             # Calculate what your paper profit/loss looks like if stock hits this price
             projected_gain_loss = (target_price - avg_cost) * shares
-            
+             
             scenarios[label] = {
                 'target_price': target_price,
                 'projected_position_value': target_price * shares,
                 'net_result_rupees': projected_gain_loss
             }
-        
+         
         return scenarios
+
+    def calculate_historical_fd_benchmark(self, annual_fd_rate: float) -> Dict:
+        """
+        Calculate historical FD benchmark and break-even analysis based on actual transaction dates.
+        
+        Focuses strictly on HISTORICAL sunk capital analysis:
+        - What capital would be worth if placed in FD from purchase date to today
+        - Compares vs current market value
+        - Derives Economic BEP (true recovery price)
+        
+        Args:
+            annual_fd_rate: Annual FD interest rate (supports both 5.0% and 0.05 formats)
+        
+        Returns:
+            Dictionary with key metrics:
+                - total_cash_invested: Sum of all C_i = P_i × S_i
+                - current_portfolio_value: ∑(S_i × CurrentPrice)
+                - total_fd_benchmark: ∑[C_i × (1 + r)^T_i]
+                - opportunity_cost_gap: Total FD Benchmark - Current Portfolio Value
+                - simple_bep: Cost basis breakeven = Total Capital / Total Shares
+                - economic_bep: FD recovery price = Total FD Benchmark / Total Shares
+                - opportunity_spread: Economic BEP - Simple BEP (per share)
+                - gain_from_current_to_economic_bep_pct: % gain needed from current price
+        """
+        total_shares = self.portfolio.get_total_shares_owned()
+        total_capital_invested = self.portfolio.get_total_invested_amount()
+        current_portfolio_value = self.portfolio.get_current_portfolio_value()
+        current_price = self.portfolio.current_market_price
+        simple_bep = self.portfolio.get_weighted_average_cost()
+        
+        # Convert FD rate from percentage to decimal if needed
+        fd_rate_decimal = annual_fd_rate if annual_fd_rate < 1.0 else annual_fd_rate / 100.0
+        
+        total_fd_benchmark = 0.0
+        
+        # Compute FD compounding for each transaction tranche
+        for transaction in self.portfolio.transactions:
+            capital_invested = transaction.get_total_invested_amount()
+            holding_years = transaction.get_holding_days() / 365.0
+            
+            # FD Value = Capital × (1 + rate)^years
+            fd_value = capital_invested * ((1 + fd_rate_decimal) ** holding_years)
+            total_fd_benchmark += fd_value
+        
+        # Calculate derived metrics
+        economic_bep = calculate_economic_bep(total_fd_benchmark, total_shares)
+        opportunity_spread = economic_bep - simple_bep if total_shares > 0 else 0.0
+        opportunity_gap = total_fd_benchmark - current_portfolio_value
+        
+        # Calculate % gain from current price to Economic BEP
+        if current_price > 0:
+            gain_pct_to_econ_bep = ((economic_bep - current_price) / current_price) * 100
+        else:
+            gain_pct_to_econ_bep = 0.0
+        
+        return {
+            'total_cash_invested': total_capital_invested,
+            'total_shares': total_shares,
+            'current_price': current_price,
+            'current_portfolio_value': current_portfolio_value,
+            'total_fd_benchmark': total_fd_benchmark,
+            'opportunity_cost_gap': opportunity_gap,
+            'simple_bep': simple_bep,
+            'economic_bep': economic_bep,
+            'opportunity_spread': opportunity_spread,
+            'annual_fd_rate': annual_fd_rate,
+            'gain_from_current_to_economic_bep_pct': gain_pct_to_econ_bep
+        }
+
+    def get_historical_opportunity_cost(self, annual_fd_rate: float) -> Dict:
+        """
+        Calculate historical sunk opportunity cost for capital already tied up in past transactions.
+        
+        This method computes what the invested capital would be worth in a risk-free Fixed Deposit
+        from the date of each transaction until today, then compares against current market value.
+        
+        Args:
+            annual_fd_rate: Annual FD interest rate (as percentage, e.g., 5.0 for 5%)
+        
+        Returns:
+            Dictionary with:
+                - total_capital_invested: Sum of all purchase prices × shares
+                - total_shares: Total shares owned
+                - total_fd_benchmark: What the capital would be worth in FD today
+                - current_market_value: Current portfolio value at market price
+                - historical_opportunity_gap: FD benchmark - current market value
+                - simple_bep: Weighted average cost (cost basis)
+                - economic_bep: Price needed to recover all FD opportunity cost
+                - opportunity_spread: Difference between economic and simple BEP
+                - detailed_transactions: List of transaction-level breakdowns
+        """
+        total_shares = self.portfolio.get_total_shares_owned()
+        total_capital_invested = self.portfolio.get_total_invested_amount()
+        current_market_value = self.portfolio.get_current_portfolio_value()
+        simple_bep = self.portfolio.get_weighted_average_cost()
+        
+        # Convert FD rate from percentage to decimal if needed
+        fd_rate_decimal = annual_fd_rate if annual_fd_rate < 1.0 else annual_fd_rate / 100.0
+        
+        total_fd_benchmark = 0.0
+        detailed_transactions = []
+        
+        # Compute FD compounding for each transaction
+        for transaction in self.portfolio.transactions:
+            capital_invested = transaction.get_total_invested_amount()
+            holding_years = transaction.get_holding_days() / 365.0
+            
+            # FD Value = Capital × (1 + rate)^years
+            fd_value = capital_invested * ((1 + fd_rate_decimal) ** holding_years)
+            opportunity_lost = fd_value - capital_invested
+            
+            total_fd_benchmark += fd_value
+            
+            detailed_transactions.append({
+                'transaction_id': transaction.transaction_id,
+                'date': transaction.date.strftime("%Y-%m-%d"),
+                'holding_days': transaction.get_holding_days(),
+                'holding_years': round(holding_years, 4),
+                'capital_invested': capital_invested,
+                'fd_value_today': fd_value,
+                'opportunity_cost': opportunity_lost
+            })
+        
+        # Calculate economic BEP and opportunity spread
+        economic_bep = calculate_economic_bep(total_fd_benchmark, total_shares)
+        opportunity_spread = economic_bep - simple_bep if total_shares > 0 else 0.0
+        historical_opportunity_gap = total_fd_benchmark - current_market_value
+        
+        return {
+            'total_capital_invested': total_capital_invested,
+            'total_shares': total_shares,
+            'total_fd_benchmark': total_fd_benchmark,
+            'current_market_value': current_market_value,
+            'historical_opportunity_gap': historical_opportunity_gap,
+            'simple_bep': simple_bep,
+            'economic_bep': economic_bep,
+            'opportunity_spread': opportunity_spread,
+            'annual_fd_rate': annual_fd_rate,
+            'detailed_transactions': detailed_transactions
+        }
