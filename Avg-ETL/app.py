@@ -1,5 +1,6 @@
 import streamlit as st
 from datetime import date, timedelta
+import plotly.graph_objects as go
 from src.models import Portfolio, Transaction
 from src.analyzer import PortfolioAnalyzer
 
@@ -131,10 +132,38 @@ with tab1:
     )
 
     st.markdown("### Visual Comparison")
-    st.bar_chart({
-        "FD Final Value": [fd_comp['fd_final_value']],
-        "Averaged Portfolio Value": [avg_scenario['new_shares'] * current_price],
-    })
+    
+    # Plotly Grouped Bar Chart
+    fd_total_value = fd_comp['fd_final_value']
+    averaged_stock_value = avg_scenario['new_shares'] * current_price
+
+    fig_fd = go.Figure(data=[
+        go.Bar(
+            name='FD Final Value',
+            x=['Fixed Deposit Alternative'],
+            y=[fd_total_value],
+            marker_color='#1f77b4',
+            text=[f"Rs. {fd_total_value:,.2f}"],
+            textposition='auto'
+        ),
+        go.Bar(
+            name='Averaged Portfolio Market Value',
+            x=['Averaged Equity Position'],
+            y=[averaged_stock_value],
+            marker_color='#2ca02c',
+            text=[f"Rs. {averaged_stock_value:,.2f}"],
+            textposition='auto'
+        )
+    ])
+
+    fig_fd.update_layout(
+        title='Side-by-Side Outcome Comparison (FD vs Averaged Stock Position)',
+        yaxis_title='Total Value (Rs.)',
+        barmode='group',
+        height=450
+    )
+
+    st.plotly_chart(fig_fd, use_container_width=True)
 
 # TAB 2: Target Average Extractor
 with tab2:
@@ -172,6 +201,9 @@ with tab3:
 
     recovery_scenarios = analyzer.get_recovery_scenarios()
     scenario_rows = []
+    milestones = []
+    net_results = []
+    
     for label, data in recovery_scenarios.items():
         scenario_rows.append(
             {
@@ -181,5 +213,31 @@ with tab3:
                 "Net Result (Rs.)": f"Rs. {data['net_result_rupees']:,.2f}",
             }
         )
+        milestones.append(label)
+        net_results.append(data['net_result_rupees'])
 
     st.table(scenario_rows)
+
+    st.markdown("### Recovery Gain/Loss Visualization")
+    
+    # Horizontal Bar Chart for Net Results
+    colors = ['#e74c3c' if r < 0 else '#2ecc71' for r in net_results]
+
+    fig_recovery = go.Figure(go.Bar(
+        x=net_results,
+        y=milestones,
+        orientation='h',
+        marker_color=colors,
+        text=[f"Rs. {r:,.0f}" for r in net_results],
+        textposition='auto'
+    ))
+
+    fig_recovery.update_layout(
+        title="Net Portfolio Value Gain/Loss Across Recovery Milestones",
+        xaxis_title="Unrealized Gain / Loss (Rs.)",
+        yaxis=dict(autorange="reversed"),
+        height=380,
+        margin=dict(l=20, r=20, t=40, b=20)
+    )
+
+    st.plotly_chart(fig_recovery, use_container_width=True)
